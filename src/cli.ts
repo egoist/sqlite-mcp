@@ -1,6 +1,7 @@
-import { createClient, type ResultSet } from "@libsql/client"
+import { createClient, type Client, type ResultSet } from "@libsql/client"
 import { FastMCP } from "fastmcp"
 import { z } from "zod" // Or any validation library that supports Standard Schema
+import { getTables, getTableSchema } from "./sqlite"
 
 if (process.argv.includes("--help")) {
   console.log(
@@ -24,6 +25,18 @@ const ensureDatabaseUrl = (url: string) => {
 }
 
 const databaseUrl = ensureDatabaseUrl(process.env.DATABASE_URL)
+
+let client: Client | undefined
+
+const ensureClient = () => {
+  if (!client) {
+    client = createClient({
+      url: databaseUrl,
+    })
+  }
+
+  return client
+}
 
 const server = new FastMCP({
   name: "SQLite MCP",
@@ -49,9 +62,7 @@ server.addTool({
     query: z.string().describe("The SQL query to execute"),
   }),
   execute: async (args) => {
-    const client = createClient({
-      url: databaseUrl,
-    })
+    const client = ensureClient()
 
     const result = await client.execute(args.query)
 
@@ -69,15 +80,47 @@ server.addTool({
     query: z.string().describe("The SQL query to execute"),
   }),
   execute: async (args) => {
-    const client = createClient({
-      url: databaseUrl,
-    })
+    const client = ensureClient()
 
     const result = await client.execute(args.query)
 
     return {
       type: "text" as const,
       text: resultToMessage(result),
+    }
+  },
+})
+
+server.addTool({
+  name: "listTableNames",
+  description: `List all table names in the database`,
+  execute: async () => {
+    const client = ensureClient()
+
+    const tables = await getTables(client)
+
+    return {
+      type: "text" as const,
+      text: tables.join(", "),
+    }
+  },
+})
+
+server.addTool({
+  name: "listAllTablesAndSchemas",
+  description: `List all tables and get their schemas in the database`,
+  execute: async () => {
+    const client = ensureClient()
+
+    const tables = await getTables(client)
+
+    const schemas = await Promise.all(
+      tables.map((table) => getTableSchema(client, table))
+    )
+
+    return {
+      type: "text" as const,
+      text: JSON.stringify(schemas),
     }
   },
 })

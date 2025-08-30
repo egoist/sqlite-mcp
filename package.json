@@ -8,7 +8,7 @@
   ],
   "bin": "./cli.js",
   "scripts": {
-    "dev": "bun --watch ./cli.ts",
+    "dev": "bun --watch ./src/cli.ts",
     "build": "tsdown src/cli.ts",
     "prepublishOnly": "bun run build"
   },
